@@ -70,16 +70,28 @@ fnnas-install
 | 可选参数  | 默认值   | 选项     | 说明            |
 | -------  | ------- | ------  | -------------- |
 | -m       | no      | yes/no  | 使用主线 u-boot  |
-| -a       | yes     | yes/no  | 使用 [ampart](https://github.com/7Ji/ampart) 分区表调整工具 |
+| -a       | no      | yes/no  | 使用 [ampart](https://github.com/7Ji/ampart) 分区表调整工具 |
 | -l       | no      | yes/no  | 显示全部设备列表  |
 
-举例: `fnnas-install -m yes -a no`
-提示: 当可用磁盘空间大于 `16GiB` 时，安装程序会提示自定义系统根分区大小，默认设置为 `16GiB`。
+举例：`fnnas-install -m yes -a no`
+
+> [!TIP]
+> 分区选项说明：当磁盘可用空间大于 16GiB 时，支持自定义系统根分区大小（默认 16GiB）。
+>
+> 在系统重装过程中，脚本会自动检测 eMMC 上的分区结构。若发现存在个人数据分区（P3），分区菜单将激活选项 `3`。选择该选项可严格保留当前分区表布局，从而确保 P3 分区内的数据不被覆盖。 系统安装完毕后，您可以在飞牛系统的 `存储空间管理` 界面中直接挂载并使用该分区。
+
+| 选项     | 说明   |
+| :-----: | :----- |
+| **1**   | 系统分区(Rootfs) 限制为 **16GiB**。             |
+| **2**   | **[默认]** 系统分区扩容至全盘 (**100%**)。       |
+| **3**   | **继承当前系统分区大小** (保留 P3 分区的个人数据)。 |
+| **≥16** | 输入数字 (**GiB**) 以自定义系统分区大小。         |
 
 - ### 更新 FnNAS 内核
 
 登录 FnNAS 系统 SSH 终端 → 输入命令：
 ```shell
+sudo -i
 fnnas-update
 ```
 
@@ -162,11 +174,12 @@ sudo apt-get install -y $(cat make-fnnas/script/ubuntu2404-make-fnnas-depends)
 
 | 参数  | 含义       | 说明        |
 | ---- | ---------- | ---------- |
-| -b   | Board      | 指定需要编译的设备代号。例如，`-b s905x3` 表示编译代号为 s905x3 的设备，多个设备可用下划线连接，如 `-b s905x3_s905d`。特殊值：`all` 表示编译全部设备，`first50` 表示编译设备库中的前 50 个，`from50` 表示从第 51 个开始至最后一个，`last20` 表示最后的 20 个。设备代号列表详见 [model_database.conf](make-fnnas/fnnas-files/common-files/etc/model_database.conf) 中的 `BOARD` 配置项。默认值为 `all` |
+| -b   | Board      | 指定需要编译的设备代号。例如，`-b s905x3` 表示编译代号为 s905x3 的设备，多个设备可用下划线连接，如 `-b s905x3_s905d`。特殊值：`all` 表示编译全部设备，`first50` 表示编译设备库中的前 50 个，`range50_100` 表示从第 51 个开始至第 100 个，`range100_150` 表示从第 101 个开始至第 150 个，`last20` 表示最后的 20 个。设备代号列表详见 [model_database.conf](make-fnnas/fnnas-files/common-files/etc/model_database.conf) 中的 `BOARD` 配置项。默认值为 `all` |
 | -r   | KernelRepo | 指定 github.com 内核仓库的 `<owner>/<repo>`。默认值：`ophub/fnnas` |
 | -k   | Kernel     | 指定 [kernel](https://github.com/ophub/fnnas/releases/tag/kernel_fnnas) 名称，如 `-k 6.12.63` 。多个内核使用 `_` 进行连接，如 `-k 6.12.63_6.18.3` 。 |
 | -a   | AutoKernel | 设置是否自动采用同系列最新版本内核。当为 `true` 时，将自动在内核库中查找在 `-k` 中指定的内核如 6.12.63 的同系列是否有更新的版本，如有 6.12.63 之后的最新版本时，将自动更换为最新版。设置为 `false` 时将编译指定版本内核。默认值：`true` |
 | -s   | Size       | 对系统的镜像分区大小（单位：MiB）进行设置，只设置 `ROOTFS` 分区大小时可以只指定一个数值，例如： `-s 6144`。需要同时设置 `BOOTFS` 和 `ROOTFS` 分区大小时，使用 / 对两个数值进行连接，例如： `-s 512/6144`。默认值：`512/6144` |
+| -e   | RootfsExpand | 设置系统根分区自动扩容大小（单位：GiB）。默认值：`16` |
 | -n   | BuilderName | 设置 FnNAS 系统构建者签名。设置签名时请勿包含空格。默认值：`无` |
 
 - `sudo ./renas` : 使用默认配置，对全部型号的电视盒子进行打包。
@@ -177,6 +190,7 @@ sudo apt-get install -y $(cat make-fnnas/script/ubuntu2404-make-fnnas-depends)
 - `sudo ./renas -b s905x3_s905d`  使用默认配置，对多个型号的电视盒子进行全部内核打包, 使用 `_` 进行多型号连接。
 - `sudo ./renas -k 6.12.63_6.18.3` : 使用默认配置，指定多个内核，进行全部型号电视盒子进行打包, 内核包使用 `_` 进行连接。
 - `sudo ./renas -k 6.12.63_6.18.3 -a true` : 使用默认配置，指定多个内核，进行全部型号电视盒子进行打包, 内核包使用 `_` 进行连接。自动升级到同系列最新内核。
+- `sudo ./renas -b s905x3 -e 32` : 使用默认配置，指定打包 `s905x3` 的固件，系统根分区自动扩容大小设定为 `32` GiB。
 
 ## 使用 GitHub Actions 进行镜像编译
 
@@ -192,6 +206,7 @@ sudo apt-get install -y $(cat make-fnnas/script/ubuntu2404-make-fnnas-depends)
     fnnas_path: fnnas/*.img.xz
     fnnas_board: s905d_s905x3_s922x_s905x
     fnnas_kernel: 6.12.y
+    rootfs_expand: 16
 ```
 
 - ### GitHub Actions 制作 fnnas 镜像参数说明
@@ -202,11 +217,12 @@ sudo apt-get install -y $(cat make-fnnas/script/ubuntu2404-make-fnnas-depends)
 |------------------|---------------|--------------------------------------------------|
 | fnnas_path       | 无            | 设置官方 Arm64 原版 FnNAS 镜像文件的路径，支持使用当前工作流中的文件路径如 `fnnas/*.img.xz` ，也支持使用网络下载地址如： `https://fnnas.com/.../fnos_arm_1.0.0_258.img.xz` |
 | fnnas_board      | all           | 设置打包盒子的 `board` ，功能参考 `-b`                 |
-| kernel_repo      | ophub/fnnas  | 指定 github.com 内核仓库的 `<owner>/<repo>`，功能参考 `-r` |
+| kernel_repo      | ophub/fnnas   | 指定 github.com 内核仓库的 `<owner>/<repo>`，功能参考 `-r` |
 | fnnas_kernel     | 6.12.y        | 设置内核 [版本](https://github.com/ophub/fnnas/releases/tag/kernel_fnnas)，功能参考 `-k` |
 | auto_kernel      | true          | 设置是否自动采用同系列最新版本内核，功能参考 `-a`       |
-| fnnas_size       | 512/6144      | 设置系统 BOOTFS 和 ROOTFS 分区的大小，功能参考 `-s`  |
-| builder_name     | 无             | 设置 FnNAS 系统构建者签名，功能参考 `-n`           |
+| fnnas_size       | 512/6144      | 设置系统 BOOTFS 和 ROOTFS 分区的大小，功能参考 `-s`   |
+| rootfs_expand    | 16            | 设置系统根分区自动扩容大小，功能参考 `-e`              |
+| builder_name     | 无            | 设置 FnNAS 系统构建者签名，功能参考 `-n`              |
 
 - ### 本地化制作 fnnas 内核参数说明
 

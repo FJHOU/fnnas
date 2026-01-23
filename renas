@@ -74,6 +74,8 @@ host_release="$(cat /etc/os-release | grep '^VERSION_CODENAME=.*' | cut -d'=' -f
 board_release_file="etc/fnnas-board-release.conf"
 # Add custom fnnas firmware information
 ophub_release_file="etc/ophub-release"
+# Add fnnas configuration file
+fnnas_conf="etc/fnnas.conf"
 
 # Dependency files download repository
 depends_repo="https://github.com/ophub/amlogic-s9xxx-armbian"
@@ -102,6 +104,8 @@ make_board="all"
 # Set fnnas firmware size (Unit: MiB, boot_mb >= 512, root_mb >= 6144)
 boot_mb="512"
 root_mb="6144"
+# Set automatic expansion size for the system root partition (Unit: GiB)
+rootfs_expand="16"
 # Set fnnas builder signature
 builder_name=""
 
@@ -166,7 +170,7 @@ init_var() {
     echo -e "${STEPS} Start Initializing Variables..."
 
     # If it is followed by [ : ], it means that the option requires a parameter value
-    local options="b:r:k:a:p:s:n:"
+    local options="b:r:k:a:e:s:n:"
     parsed_args=$(getopt -o "${options}" -- "${@}")
     [[ ${?} -ne 0 ]] && error_msg "Parameter parsing failed."
     eval set -- "${parsed_args}"
@@ -206,6 +210,14 @@ init_var() {
                 shift 2
             else
                 error_msg "Invalid -a parameter [ ${2} ]!"
+            fi
+            ;;
+        -e | --RootfsExpand)
+            if [[ -n "${2}" ]]; then
+                rootfs_expand="${2}"
+                shift 2
+            else
+                error_msg "Invalid -e parameter [ ${2} ]!"
             fi
             ;;
         -s | --Size)
@@ -253,7 +265,7 @@ check_data() {
     [[ -f "${model_conf}" ]] || error_msg "Missing model config file: [ ${model_conf} ]"
 
     # Get a list of build devices
-    if [[ "${make_board}" =~ ^(all|first50|from50|last20)$ ]]; then
+    if [[ "${make_board}" =~ ^(all|first50|range50_100|range100_150|last20)$ ]]; then
         board_list=":(yes)"
         make_fnnas=($(
             cat ${model_conf} |
@@ -267,14 +279,19 @@ check_data() {
     fi
     [[ "${#make_fnnas[@]}" -eq 0 ]] && error_msg "The board is missing, stop making."
 
-    # Select the first 50 boards (Index 0-49)
+    # Select the first 50 boards
     [[ "${make_board}" == "first50" ]] && {
         make_fnnas=("${make_fnnas[@]:0:50}")
         board_list=":($(echo ${make_fnnas[@]} | sed -e 's/ /\|/g')):(yes|no)"
     }
-    # Select the remaining boards starting from the 51st (Skip first 50)
-    [[ "${make_board}" == "from50" ]] && {
-        make_fnnas=("${make_fnnas[@]:50}")
+    # Select boards from 51st to 100th
+    [[ "${make_board}" == "range50_100" ]] && {
+        make_fnnas=("${make_fnnas[@]:50:50}")
+        board_list=":($(echo ${make_fnnas[@]} | sed -e 's/ /\|/g')):(yes|no)"
+    }
+    # Select boards from 101st to 150th
+    [[ "${make_board}" == "range100_150" ]] && {
+        make_fnnas=("${make_fnnas[@]:100:50}")
         board_list=":($(echo ${make_fnnas[@]} | sed -e 's/ /\|/g')):(yes|no)"
     }
     # Select the last 20 boards
@@ -334,24 +351,30 @@ download_depends() {
     echo -e "${STEPS} Start downloading dependency files..."
 
     # Download u-boot files
-    git_path="$(mktemp -d)"
-    git_pull_dir ${uboot_repo} main ${git_path}
-    # Move the u-boot files to the storage directory
-    mkdir -p ${uboot_path}
-    cp -af --no-preserve=ownership ${git_path}/u-boot/. ${uboot_path}
-    [[ "${?}" -eq 0 ]] && echo -e "${INFO} fnnas: u-boot download completed." || error_msg "fnnas: u-boot download failed."
-    # Delete temporary files
-    rm -rf ${git_path}
+    uboot_num="$(find "${uboot_path}/rockchip" -mindepth 1 -maxdepth 1 -type d 2>/dev/null | wc -l)"
+    [[ -n "${uboot_num}" && "${uboot_num}" -le "5" ]] && {
+        git_path="$(mktemp -d)"
+        git_pull_dir ${uboot_repo} main ${git_path}
+        # Move the u-boot files to the storage directory
+        mkdir -p ${uboot_path}
+        cp -af --no-preserve=ownership ${git_path}/u-boot/. ${uboot_path}
+        [[ "${?}" -eq 0 ]] && echo -e "${INFO} fnnas: u-boot download completed." || error_msg "fnnas: u-boot download failed."
+        # Delete temporary files
+        rm -rf ${git_path}
+    } || echo -e "${INFO} fnnas: u-boot directory is not empty, skip download."
 
     # Download firmware files
-    git_path="$(mktemp -d)"
-    git_pull_dir ${firmware_repo} main ${git_path}
-    # Move the firmware files to the storage directory
-    mkdir -p ${firmware_path}
-    cp -af --no-preserve=ownership ${git_path}/firmware/. ${firmware_path}
-    [[ "${?}" -eq 0 ]] && echo -e "${INFO} fnnas: firmware download completed." || error_msg "fnnas: firmware download failed."
-    # Delete temporary files
-    rm -rf ${git_path}
+    firmware_num="$(find "${firmware_path}" -mindepth 1 -maxdepth 1 -type d 2>/dev/null | wc -l)"
+    [[ -n "${firmware_num}" && "${firmware_num}" -le "5" ]] && {
+        git_path="$(mktemp -d)"
+        git_pull_dir ${firmware_repo} main ${git_path}
+        # Move the firmware files to the storage directory
+        mkdir -p ${firmware_path}
+        cp -af --no-preserve=ownership ${git_path}/firmware/. ${firmware_path}
+        [[ "${?}" -eq 0 ]] && echo -e "${INFO} fnnas: firmware download completed." || error_msg "fnnas: firmware download failed."
+        # Delete temporary files
+        rm -rf ${git_path}
+    } || echo -e "${INFO} fnnas: firmware directory is not empty, skip download."
 
     # Download Armbian repository files
     git_path="$(mktemp -d)"
@@ -364,10 +387,6 @@ download_depends() {
     # Move the different files to the storage directory
     cp -af --no-preserve=ownership ${git_path}/build-armbian/armbian-files/different-files/. ${different_files}
     [[ "${?}" -eq 0 ]] && echo -e "${INFO} fnnas: different-files download completed." || error_msg "fnnas: different-files download failed."
-    # Move the balethirq related files to the storage directory
-    cp -f --no-preserve=ownership ${git_path}/build-armbian/armbian-files/common-files/usr/sbin/balethirq.pl ${common_files}/usr/sbin
-    cp -f --no-preserve=ownership ${git_path}/build-armbian/armbian-files/common-files/etc/balance_irq ${common_files}/etc
-    [[ "${?}" -eq 0 ]] && echo -e "${INFO} fnnas: balethirq download completed." || error_msg "fnnas: balethirq download failed."
     # Delete temporary files
     rm -rf ${git_path}
 }
@@ -830,6 +849,7 @@ refactor_rootfs() {
     # Delete related files
     rm -f var/lib/dpkg/info/linux-image*
     rm -rf usr/share/doc/linux-image-*
+    rm -f usr/trim/bin/resize-rootfs.sh
 
     # Rebuild symbolic link files (ln -sf ${target} ${symbolic_link_file})
     ln -sf usr/bin bin
@@ -839,6 +859,7 @@ refactor_rootfs() {
     ln -sf /run var/run
     ln -sf /usr/share/zoneinfo/Asia/Shanghai etc/localtime
     ln -sf fnnas-ddbr usr/sbin/ddbr
+    ln -sf /usr/sbin/fnnas-tf usr/trim/bin/resize-rootfs.sh
 
     # Fix common releases permissions
     [[ -d "var/tmp" ]] && chmod 777 var/tmp
@@ -870,8 +891,13 @@ refactor_rootfs() {
     # Make the .bashrc take effect, Default shell settings file: /etc/default/useradd
     echo '[[ "${SHELL}" == *bash && -f "${HOME}/.bashrc" ]] && . ${HOME}/.bashrc' >>etc/profile
 
-    # Explicitly disable resizing for Amlogic device, use fnnas-tf settings
-    echo "yes" >root/.no_rootfs_resize
+    # Set rootfs size limit in fnnas.conf
+    [[ -f "${fnnas_conf}" ]] || error_msg "Missing fnnas configuration file: [ ${fnnas_conf} ]"
+    rootfs_expand="$(echo "${rootfs_expand}" | tr -cd '0-9.' | cut -d. -f1)"
+    [[ -z "${rootfs_expand}" || ! "${rootfs_expand}" =~ ^[0-9]+$ ]] && rootfs_expand="16"
+    [[ "${rootfs_expand}" -ne "16" ]] && {
+        sed -i "s|^rootfs_limit_gib=.*|rootfs_limit_gib=\"${rootfs_expand}\"|g" "${fnnas_conf}"
+    }
 
     # Get random macaddr
     mac_hexchars="0123456789ABCDEF"
