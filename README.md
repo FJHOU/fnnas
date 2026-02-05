@@ -14,7 +14,6 @@ This project benefits from the hard work of numerous [contributors](https://gith
 | System Name    | Default Account | Default Password | SSH Port | IP Address |
 | -------------- | ------- | ------- | ------- | ------- |
 | 🛜 [FnNAS.OS](https://github.com/ophub/fnnas/releases) | Custom | Custom | 22 | Get IP from Router |
-| 🐋 [FnNAS.Docker](https://hub.docker.com/u/ophub) | Custom | Custom | 22 | Host IP |
 
 
 ## Supported Device List
@@ -72,10 +71,10 @@ fnnas-install
 | Optional | Default | Options | Description       |
 | -------- | ------- | ------- | ----------------- |
 | -m       | no      | yes/no  | Use mainline u-boot |
-| -a       | no      | yes/no  | Use [ampart](https://github.com/7Ji/ampart) partition adjustment tool |
+| -a       | yes     | yes/no  | Use [ampart](https://github.com/7Ji/ampart) partition adjustment tool |
 | -l       | no      | yes/no  | Show full device list |
 
-Example: `fnnas-install -m yes -a no`
+Example: `fnnas-install -m yes`
 
 > [!TIP]
 > Partition option description: Customizing the system rootfs size is available when disk space exceeds 16GiB (Default: 16GiB).

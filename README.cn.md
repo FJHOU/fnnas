@@ -14,7 +14,6 @@
 | 系统名称        | 默认账号 | 默认密码  | SSH 端口 | IP 地址 |
 | -------------- | ------- | ------- | ------- | ------- |
 | 🛜 [FnNAS.OS](https://github.com/ophub/fnnas/releases) | 自定义 | 自定义 | 22 | 从路由器获取 IP |
-| 🐋 [FnNAS.Docker](https://hub.docker.com/u/ophub) | 自定义 | 自定义 | 22 | 宿主机 IP |
 
 
 ## 支持的设备列表
@@ -71,10 +70,10 @@ fnnas-install
 | 可选参数  | 默认值   | 选项     | 说明            |
 | -------  | ------- | ------  | -------------- |
 | -m       | no      | yes/no  | 使用主线 u-boot  |
-| -a       | no      | yes/no  | 使用 [ampart](https://github.com/7Ji/ampart) 分区表调整工具 |
+| -a       | yes     | yes/no  | 使用 [ampart](https://github.com/7Ji/ampart) 分区表调整工具 |
 | -l       | no      | yes/no  | 显示全部设备列表  |
 
-举例：`fnnas-install -m yes -a no`
+举例：`fnnas-install -m yes`
 
 > [!TIP]
 > 分区选项说明：当磁盘可用空间大于 16GiB 时，支持自定义系统根分区大小（默认 16GiB）。
